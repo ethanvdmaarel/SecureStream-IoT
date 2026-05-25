@@ -148,7 +148,42 @@ bq query --use_legacy_sql=false 'SELECT publish_time, data FROM securestream.raw
 You should see a steady stream of signed readings arriving. Stop the simulator
 with Ctrl+C.
 
+## Part 3 — Anomaly detection
+
+This flags abnormal readings. The script in `anomaly/detect_anomalies.sql`
+rebuilds the `flagged_events` table from every `raw_telemetry` reading that
+breaches the temperature threshold rule. A normal sensor reads 18 to 26
+degrees, so anything outside 0 to 40 is treated as out of range.
+
+### Test it once by hand
+
+Make sure the simulator has been running so there is data, then run:
+
+```
+bq query --use_legacy_sql=false --location=asia-east1 < anomaly/detect_anomalies.sql
+```
+
+Check what it flagged:
+
+```
+bq query --use_legacy_sql=false 'SELECT device_id, value, reason, event_time FROM securestream.flagged_events ORDER BY event_time DESC LIMIT 20'
+```
+
+You should see the abnormal spikes the simulator sent, the readings above
+40 degrees.
+
+### Run it automatically
+
+Open BigQuery in the console, paste the contents of `anomaly/detect_anomalies.sql`
+into the query editor, then click Schedule and choose Schedule query. Set the
+repeat to every 15 minutes and the location to asia-east1, then save. No
+destination table is needed, the script writes the table itself. From then on
+`flagged_events` refreshes itself.
+
+For a live demo you can also just run the script by hand right before showing
+the dashboard, so the newest anomalies appear immediately.
+
 ## What is next
 
-After the simulator works, the next pieces are the anomaly detection query and
+After anomaly detection, the next pieces are the Looker Studio dashboard and
 the device code for the Raspberry Pi Pico 2 W.
