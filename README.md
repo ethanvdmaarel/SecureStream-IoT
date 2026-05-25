@@ -98,8 +98,57 @@ To remove everything and stop all usage:
 terraform destroy
 ```
 
+## Part 2 — Ingest service and simulator
+
+This deploys the Cloud Run ingest service and runs the device simulator. Run
+everything from Cloud Shell, from the repository root.
+
+### Deploy the ingest service
+
+```
+gcloud run deploy securestream-ingest \
+  --source ingest \
+  --region asia-east1 \
+  --service-account sa-ingest@securestream-iot-7f3k.iam.gserviceaccount.com \
+  --allow-unauthenticated \
+  --set-env-vars PROJECT_ID=securestream-iot-7f3k,TOPIC_ID=telemetry
+```
+
+The first deploy asks to create an Artifact Registry repository, answer yes.
+The build takes a few minutes. When it finishes it prints a Service URL like
+`https://securestream-ingest-xxxxxxxx.asia-east1.run.app`. Copy that URL.
+
+You can open the URL in a browser, it should say the ingest service is running.
+
+### Register the simulated devices
+
+```
+pip install --user -r simulator/requirements.txt
+python simulator/register_devices.py
+```
+
+This creates twelve devices, stores their public keys in Firestore, and saves
+the private keys in `simulator/keys/`. Run it once. The `keys/` folder is
+gitignored, the private keys never leave Cloud Shell.
+
+### Run the simulator
+
+```
+python simulator/simulator.py YOUR-SERVICE-URL
+```
+
+Use the Service URL from the deploy step. The simulator sends a signed reading
+from every device every few seconds. Leave it running and check BigQuery in a
+second Cloud Shell tab:
+
+```
+bq query --use_legacy_sql=false 'SELECT publish_time, data FROM securestream.raw_telemetry ORDER BY publish_time DESC LIMIT 20'
+```
+
+You should see a steady stream of signed readings arriving. Stop the simulator
+with Ctrl+C.
+
 ## What is next
 
-Once this foundation is up, the next pieces are the Cloud Run ingest service and the
-Python device simulator. Both plug into the `telemetry` topic and the `sa-ingest`
-service account created here. Ask Claude to generate them when you are ready.
+After the simulator works, the next pieces are the anomaly detection query and
+the device code for the Raspberry Pi Pico 2 W.
